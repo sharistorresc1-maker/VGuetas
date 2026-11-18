@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conteo de Estribos – Viguetas (CD04)</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --card:#fff; --ink:#1d2330; --muted:#6b7385; --line:#d9dde5;
+    --acc:#1f5fbf; --acc2:#e8f0fc; --ok:#1a7f4b; --warn:#b25e00;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+  header{background:#1d2330;color:#fff;padding:16px 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+  header h1{margin:0;font-size:19px;letter-spacing:.5px}
+  header small{color:#aeb6c6}
+  main{max-width:1250px;margin:0 auto;padding:20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px 18px;margin-bottom:18px}
+  .card h2{font-size:15px;margin:0 0 12px;text-transform:uppercase;letter-spacing:.6px;color:#2b3446}
+  table{width:100%;border-collapse:collapse}
+  th,td{border:1px solid var(--line);padding:6px 8px;text-align:center}
+  th{background:#eef1f6;font-weight:600;font-size:12.5px}
+  td.l{text-align:left}
+  input,select{font:inherit;padding:5px 6px;border:1px solid #c5cbd6;border-radius:4px;width:100%;background:#fff}
+  input[type=number]{text-align:right}
+  input.sm{max-width:80px}
+  button{font:inherit;cursor:pointer;border:1px solid var(--acc);background:var(--acc);color:#fff;padding:7px 14px;border-radius:5px}
+  button.ghost{background:#fff;color:var(--acc)}
+  button.del{background:#fff;color:#b3261e;border-color:#e3b5b1;padding:3px 9px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+  .kpi{background:var(--acc2);border-radius:8px;padding:12px 14px}
+  .kpi b{display:block;font-size:24px;color:var(--acc)}
+  .kpi span{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  .res{font-weight:700;color:var(--acc)}
+  .note{color:var(--muted);font-size:12.5px;line-height:1.5}
+  .det{font-size:11.5px;color:var(--muted)}
+  .warn{color:var(--warn)}
+  tfoot td{font-weight:700;background:#f7f8fb}
+  .tag{display:inline-block;padding:2px 8px;border-radius:10px;background:#eef1f6;font-size:12px}
+  @media print{
+    header{background:#fff;color:#000;border-bottom:2px solid #000}
+    button,.noprint{display:none!important}
+    .card{border:none;padding:0}
+    input,select{border:none;padding:0}
+    body{background:#fff}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>CONTEO DE ESTRIBOS EN VIGUETAS</h1>
+    <small>Según Cuadro de Viguetas CD04 · Ø 3/8" · 1@0.05, 5@0.10, Rsto. @0.25 A/E</small>
+  </div>
+  <div class="row noprint">
+    <button class="ghost" onclick="exportCSV()">Exportar CSV</button>
+    <button onclick="window.print()">Imprimir / PDF</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- RESUMEN -->
+  <div class="card">
+    <h2>Resumen general</h2>
+    <div class="grid" id="kpis"></div>
+  </div>
+
+  <!-- METRADO -->
+  <div class="card">
+    <h2>Metrado por vigueta / tramo</h2>
+    <p class="note">Ingresa cada tramo con su <b>luz libre</b> (cara a cara de apoyos) en metros. "Cant." = número de tramos iguales.</p>
+    <div style="overflow-x:auto">
+    <table id="tblMet">
+      <thead>
+        <tr>
+          <th style="width:40px">#</th>
+          <th>Eje / Ubicación</th>
+          <th style="width:140px">Tipo</th>
+          <th style="width:90px">Luz libre (m)</th>
+          <th style="width:70px">Cant.</th>
+          <th>Distribución (por tramo)</th>
+          <th style="width:90px">Estr./tramo</th>
+          <th style="width:90px">Total estr.</th>
+          <th style="width:90px">Long. (m)</th>
+          <th style="width:80px">Peso (kg)</th>
+          <th class="noprint" style="width:40px"></th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+      <tfoot>
+        <tr>
+          <td colspan="7" style="text-align:right">TOTAL</td>
+          <td id="ftEst">0</td>
+          <td id="ftLong">0</td>
+          <td id="ftPeso">0</td>
+          <td class="noprint"></td>
+        </tr>
+      </tfoot>
+    </table>
+    </div>
+    <div class="row noprint" style="margin-top:10px">
+      <button onclick="addRow()">+ Agregar tramo</button>
+      <button class="ghost" onclick="if(confirmClear())clearRows()">Limpiar tabla</button>
+    </div>
+  </div>
+
+  <!-- ESQUEMA -->
+  <div class="card">
+    <h2>Esquema de distribución de estribos</h2>
+    <div class="row noprint" style="margin-bottom:10px">
+      <label style="display:flex;gap:8px;align-items:center">Tramo:
+        <select id="selTramo" style="width:auto;min-width:260px" onchange="sel=+this.value;drawEsquema()"></select>
+      </label>
+      <span class="note">También puedes hacer clic en el # de una fila de la tabla.</span>
+    </div>
+    <div style="overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:#fcfcfd">
+      <svg id="svgEsq" width="100%" viewBox="0 0 1200 380" style="min-width:900px;display:block"></svg>
+    </div>
+    <p class="note" id="esqNota" style="margin-top:8px"></p>
+  </div>
+
+  <!-- CORTES -->
+  <div class="card">
+    <h2>Cortes típicos de viguetas (Corte A-A)</h2>
+    <p class="note">El tipo del tramo seleccionado se resalta en azul. Cotas en mm. Haz clic en un corte para ver su detalle grande.</p>
+    <div id="cortes" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px"></div>
+    <div style="margin-top:14px;border:1px solid var(--line);border-radius:6px;background:#fcfcfd">
+      <svg id="svgCorte" width="100%" viewBox="0 0 900 420" style="display:block"></svg>
+    </div>
+  </div>
+
+  <!-- RESUMEN POR TIPO -->
+  <div class="card">
+    <h2>Resumen por tipo de vigueta</h2>
+    <table id="tblRes">
+      <thead>
+        <tr><th>Tipo</th><th>Sección</th><th>Forma</th><th>N° tramos</th><th>N° estribos</th><th>Long. unit. (m)</th><th>Long. total (m)</th><th>Peso (kg)</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- TIPOS -->
+  <div class="card">
+    <h2>Tipos de vigueta (editable)</h2>
+    <div style="overflow-x:auto">
+    <table id="tblTipos">
+      <thead>
+        <tr>
+          <th>Tipo</th><th>b (cm)</th><th>h (cm)</th><th>Forma del estribo</th>
+          <th>Long. calculada (m)</th><th>Long. manual (m)<br><span class="det">(opcional)</span></th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    </div>
+  </div>
+
+  <!-- PARÁMETROS -->
+  <div class="card">
+    <h2>Parámetros de distribución y acero</h2>
+    <div class="grid">
+      <label>1ª zona: cantidad <input type="number" id="z1n" value="1" min="0" step="1"></label>
+      <label>1ª zona: espac. (m) <input type="number" id="z1s" value="0.05" min="0" step="0.01"></label>
+      <label>2ª zona: cantidad <input type="number" id="z2n" value="5" min="0" step="1"></label>
+      <label>2ª zona: espac. (m) <input type="number" id="z2s" value="0.10" min="0" step="0.01"></label>
+      <label>Resto @ (m) <input type="number" id="rs" value="0.25" min="0.01" step="0.01"></label>
+      <label>Criterio del resto
+        <select id="crit">
+          <option value="min" selected>Separación ≥ @ (mayor o igual)</option>
+          <option value="gt">Separación &gt; @ (estrictamente mayor)</option>
+          <option value="max">Separación ≤ @ (menor o igual, más estribos)</option>
+        </select></label>
+      <label>Recubrimiento (cm) <input type="number" id="rec" value="2.5" min="0" step="0.5"></label>
+      <label>Gancho c/extremo (cm) <input type="number" id="gan" value="7.5" min="0" step="0.5"></label>
+      <label>Peso Ø3/8" (kg/m) <input type="number" id="pkg" value="0.56" min="0" step="0.01"></label>
+    </div>
+    <p class="note" style="margin-top:12px">
+      <b>Criterio de conteo (por tramo, A/E = a cada extremo):</b><br>
+      • Zona confinada por extremo = 1×0.05 + 5×0.10 = <span id="lzTxt">0.55</span> m → <span id="nzTxt">6</span> estribos por extremo.<br>
+      • Zona central L<sub>c</sub> = L − 2×<span id="lzTxt2">0.55</span>. Estribos del resto: <b>separación ≤ @</b> → ⌈L<sub>c</sub> / @⌉ − 1 &nbsp;|&nbsp; <b>separación ≥ @</b> → ⌊L<sub>c</sub> / @⌋ − 1 &nbsp;|&nbsp; <b>separación &gt; @</b> → igual que ≥, pero si la división es exacta se quita un estribo más (ej. L<sub>c</sub> = 2.50 → 8 @ 0.278 en vez de 9 @ 0.25) (los extremos de esa zona ya los ocupan los últimos estribos de confinamiento).<br>
+      • Si la luz es menor que 2× la zona confinada, se colocan los estribos de cada extremo hasta encontrarse al centro (sin duplicar).<br>
+      • Long. grapa = (dimensión − 2·rec) + 2·gancho &nbsp;|&nbsp; Long. estribo cerrado = 2(b−2rec) + 2(h−2rec) + 2·gancho.
+    </p>
+  </div>
+
+</main>
+
+<script>
+const DEF_TIPOS = [
+  {t:"VA-14X16",  b:14, h:16, f:"grapa_v"},
+  {t:"VA-14X20",  b:14, h:20, f:"grapa_v"},
+  {t:"VA-24X16",  b:24, h:16, f:"grapa_h"},
+  {t:"VA-24X175", b:24, h:17.5, f:"grapa_h"},
+  {t:"VA-24X20",  b:24, h:20, f:"grapa_h"},
+  {t:"VA-24X25",  b:24, h:25, f:"estribo"},
+];
+const FORMAS = {grapa_v:"Grapa S vertical", grapa_h:"Grapa S horizontal", estribo:"Estribo cerrado"};
+const KEY = "conteo_estribos_viguetas_v1";
+
+let tipos = JSON.parse(JSON.stringify(DEF_TIPOS)).map(x=>({...x, man:""}));
+let rows = [
+  {ub:"Eje 1-2 / A-B", t:"VA-14X16", L:3.50, n:1},
+  {ub:"Eje 2-3 / A-B", t:"VA-24X25", L:4.20, n:2},
+];
+
+// ---------- persistencia ----------
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify({tipos, rows, p:getParams()})); }catch(e){}
+}
+function load(){
+  try{
+    const d = JSON.parse(localStorage.getItem(KEY)||"null");
+    if(!d) return;
+    if(d.tipos) tipos = d.tipos;
+    if(d.rows) rows = d.rows;
+    if(d.p) for(const k in d.p){ const el=document.getElementById(k); if(el) el.value=d.p[k]; }
+  }catch(e){}
+}
+
+// ---------- utilidades ----------
+const num = v => { const x = parseFloat(v); return isFinite(x) ? x : 0; };
+const f2 = x => x.toLocaleString("es-PE",{minimumFractionDigits:2, maximumFractionDigits:2});
+const f0 = x => x.toLocaleString("es-PE");
+const esc = s => String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function getParams(){
+  const ids=["z1n","z1s","z2n","z2s","rs","crit","rec","gan","pkg"], o={};
+  ids.forEach(i=>o[i]=document.getElementById(i).value);
+  return o;
+}
+
+// ---------- conteo ----------
+const critVal = () => document.getElementById("crit").value;
+const critSym = () => ({max:"≤", min:"≥", gt:">"}[critVal()] || "≥");
+function nResto(Lc, sr){
+  if(Lc <= 1e-6) return 0;
+  const c = critVal(), q = Lc/sr;
+  let esp;
+  if(c === "max")     esp = Math.ceil(q - 1e-6);        // separación ≤ @
+  else if(c === "gt") esp = Math.ceil(q - 1e-6) - 1;    // separación > @
+  else                esp = Math.floor(q + 1e-6);       // separación ≥ @
+  return Math.max(esp - 1, 0);
+}
+function contar(L){
+  const p = getParams();
+  const zonas = [{n:Math.max(0,Math.round(num(p.z1n))), s:num(p.z1s)},
+                 {n:Math.max(0,Math.round(num(p.z2n))), s:num(p.z2s)}];
+  const sr = Math.max(0.01, num(p.rs));
+  const pos = []; let x = 0;
+  zonas.forEach(z=>{ for(let i=0;i<z.n;i++){ x += z.s; pos.push(+x.toFixed(4)); } });
+  const Lz = pos.length ? pos[pos.length-1] : 0;
+  const Nz = pos.length;
+  if(L <= 0) return {tot:0, txt:"—", warn:false};
+
+  if(2*Lz < L - 1e-6){
+    const Lc = L - 2*Lz;
+    const nr = nResto(Lc, sr);
+    return {tot: 2*Nz + nr, txt:`${Nz} + ${nr} (resto, Lc=${f2(Lc)} m) + ${Nz}`, warn:false};
+  }
+  // luz corta: se llenan ambos extremos hasta el centro
+  const half = L/2;
+  let a = pos.filter(q => q < half - 1e-6).length;
+  let c = pos.some(q => Math.abs(q-half) <= 1e-6) ? 1 : 0;
+  // si la zona confinada no llega al centro (no aplica aquí) se completa
+  return {tot: 2*a + c, txt:`Luz corta: ${a} + ${c?"1 + ":""}${a} (zona confinada se cruza)`, warn:true};
+}
+
+function longTipo(tp){
+  if(tp.man !== "" && num(tp.man) > 0) return num(tp.man);
+  const p = getParams(), r = num(p.rec), g = num(p.gan);
+  let cm;
+  if(tp.f === "grapa_v") cm = (num(tp.h) - 2*r) + 2*g;
+  else if(tp.f === "grapa_h") cm = (num(tp.b) - 2*r) + 2*g;
+  else cm = 2*(num(tp.b)-2*r) + 2*(num(tp.h)-2*r) + 2*g;
+  return Math.max(cm,0)/100;
+}
+function longCalc(tp){ const m = tp.man; tp.man=""; const v=longTipo(tp); tp.man=m; return v; }
+const getTipo = t => tipos.find(x=>x.t===t) || tipos[0];
+
+// ---------- render ----------
+function renderTipos(){
+  const tb = document.querySelector("#tblTipos tbody");
+  tb.innerHTML = tipos.map((tp,i)=>`
+    <tr>
+      <td><b>${esc(tp.t)}</b></td>
+      <td><input type="number" class="sm" step="0.5" value="${tp.b}" onchange="tipos[${i}].b=this.value;update()"></td>
+      <td><input type="number" class="sm" step="0.5" value="${tp.h}" onchange="tipos[${i}].h=this.value;update()"></td>
+      <td><select onchange="tipos[${i}].f=this.value;update()">
+        ${Object.entries(FORMAS).map(([k,v])=>`<option value="${k}" ${tp.f===k?"selected":""}>${v}</option>`).join("")}
+      </select></td>
+      <td id="lc${i}">${f2(longCalc(tp))}</td>
+      <td><input type="number" class="sm" step="0.01" placeholder="auto" value="${tp.man}" onchange="tipos[${i}].man=this.value;update()"></td>
+    </tr>`).join("");
+}
+
+function renderRows(){
+  const tb = document.querySelector("#tblMet tbody");
+  tb.innerHTML = rows.map((r,i)=>`
+    <tr>
+      <td style="cursor:pointer;color:var(--acc);font-weight:700" title="Ver esquema" onclick="sel=${i};drawEsquema()">${i+1}</td>
+      <td class="l"><input value="${esc(r.ub)}" onchange="rows[${i}].ub=this.value;save()"></td>
+      <td><select onchange="rows[${i}].t=this.value;update()">
+        ${tipos.map(tp=>`<option ${tp.t===r.t?"selected":""}>${esc(tp.t)}</option>`).join("")}
+      </select></td>
+      <td><input type="number" step="0.01" min="0" value="${r.L}" onchange="rows[${i}].L=this.value;update()"></td>
+      <td><input type="number" step="1" min="0" value="${r.n}" onchange="rows[${i}].n=this.value;update()"></td>
+      <td class="det" id="d${i}"></td>
+      <td id="e${i}"></td>
+      <td class="res" id="t${i}"></td>
+      <td id="lg${i}"></td>
+      <td id="pk${i}"></td>
+      <td class="noprint"><button class="del" title="Eliminar" onclick="rows.splice(${i},1);renderRows();update()">✕</button></td>
+    </tr>`).join("");
+}
+
+function update(){
+  const p = getParams(), kg = num(p.pkg);
+  // textos de criterio
+  const Lz = num(p.z1n)*num(p.z1s) + num(p.z2n)*num(p.z2s);
+  document.getElementById("lzTxt").textContent = f2(Lz);
+  document.getElementById("lzTxt2").textContent = f2(Lz);
+  document.getElementById("nzTxt").textContent = Math.round(num(p.z1n)+num(p.z2n));
+  tipos.forEach((tp,i)=>{ const c=document.getElementById("lc"+i); if(c) c.textContent=f2(longCalc(tp)); });
+
+  let TE=0, TL=0, TP=0;
+  const res = {};
+  tipos.forEach(tp=>res[tp.t]={tr:0,e:0,l:0,p:0});
+
+  rows.forEach((r,i)=>{
+    const tp = getTipo(r.t);
+    const c = contar(num(r.L));
+    const n = Math.max(0, Math.round(num(r.n)));
+    const tot = c.tot * n;
+    const lu = longTipo(tp);
+    const lt = tot * lu, pk = lt * kg;
+    document.getElementById("d"+i).innerHTML = c.warn ? `<span class="warn">${c.txt}</span>` : c.txt;
+    document.getElementById("e"+i).textContent = f0(c.tot);
+    document.getElementById("t"+i).textContent = f0(tot);
+    document.getElementById("lg"+i).textContent = f2(lt);
+    document.getElementById("pk"+i).textContent = f2(pk);
+    TE+=tot; TL+=lt; TP+=pk;
+    if(res[tp.t]){ res[tp.t].tr+=n; res[tp.t].e+=tot; res[tp.t].l+=lt; res[tp.t].p+=pk; }
+  });
+
+  document.getElementById("ftEst").textContent = f0(TE);
+  document.getElementById("ftLong").textContent = f2(TL);
+  document.getElementById("ftPeso").textContent = f2(TP);
+
+  document.querySelector("#tblRes tbody").innerHTML = tipos.map(tp=>{
+    const r = res[tp.t];
+    return `<tr>
+      <td><b>${esc(tp.t)}</b></td><td>${tp.b} × ${tp.h} cm</td>
+      <td><span class="tag">${FORMAS[tp.f]}</span></td>
+      <td>${f0(r.tr)}</td><td class="res">${f0(r.e)}</td>
+      <td>${f2(longTipo(tp))}</td><td>${f2(r.l)}</td><td>${f2(r.p)}</td></tr>`;
+  }).join("") + `<tr style="font-weight:700;background:#f7f8fb"><td colspan="4" style="text-align:right">TOTAL</td>
+      <td class="res">${f0(TE)}</td><td></td><td>${f2(TL)}</td><td>${f2(TP)}</td></tr>`;
+
+  const nTr = rows.reduce((a,r)=>a+Math.max(0,Math.round(num(r.n))),0);
+  document.getElementById("kpis").innerHTML = `
+    <div class="kpi"><span>Tramos de vigueta</span><b>${f0(nTr)}</b></div>
+    <div class="kpi"><span>Total estribos Ø3/8"</span><b>${f0(TE)}</b></div>
+    <div class="kpi"><span>Longitud total</span><b>${f2(TL)} m</b></div>
+    <div class="kpi"><span>Peso total</span><b>${f2(TP)} kg</b></div>
+    <div class="kpi"><span>Varillas de 9 m (aprox.)</span><b>${f0(Math.ceil(TL/9))}</b></div>`;
+  drawEsquema();
+  save();
+}
+
+// ---------- posiciones de estribos ----------
+function posiciones(L){
+  const p = getParams();
+  const zonas = [{n:Math.max(0,Math.round(num(p.z1n))), s:num(p.z1s)},
+                 {n:Math.max(0,Math.round(num(p.z2n))), s:num(p.z2s)}];
+  const sr = Math.max(0.01, num(p.rs));
+  const pz = []; let x = 0;
+  zonas.forEach((z,zi)=>{ for(let i=0;i<z.n;i++){ x += z.s; pz.push({x:+x.toFixed(4), z:zi}); } });
+  const Lz = pz.length ? pz[pz.length-1].x : 0;
+  const out = [];
+  if(L<=0) return {out, Lz, corto:false, zonas, sr};
+  if(2*Lz < L - 1e-6){
+    pz.forEach(q=>out.push({x:q.x, z:q.z}));
+    const Lc = L - 2*Lz, nr = nResto(Lc, sr);
+    for(let k=1;k<=nr;k++) out.push({x: Lz + Lc*k/(nr+1), z:2});
+    pz.slice().reverse().forEach(q=>out.push({x:L-q.x, z:q.z}));
+    return {out, Lz, corto:false, zonas, sr, nr, Lc};
+  }
+  const h = L/2;
+  pz.filter(q=>q.x < h-1e-6).forEach(q=>out.push({x:q.x,z:q.z}));
+  if(pz.some(q=>Math.abs(q.x-h)<=1e-6)) out.push({x:h,z:1});
+  pz.filter(q=>q.x < h-1e-6).reverse().forEach(q=>out.push({x:L-q.x,z:q.z}));
+  return {out, Lz, corto:true, zonas, sr};
+}
+
+let sel = 0;
+function drawEsquema(){
+  const svg = document.getElementById("svgEsq");
+  const ss = document.getElementById("selTramo");
+  ss.innerHTML = rows.map((r,i)=>`<option value="${i}">#${i+1} · ${esc(r.ub||"(sin ubicación)")} · ${esc(r.t)} · L=${f2(num(r.L))} m</option>`).join("");
+  if(!rows.length){ svg.innerHTML = `<text x="600" y="190" text-anchor="middle" fill="#6b7385" font-size="16">Agrega un tramo para ver el esquema</text>`; document.getElementById("esqNota").textContent=""; return; }
+  if(sel >= rows.length) sel = rows.length-1;
+  ss.value = sel;
+
+  const r = rows[sel], tp = getTipo(r.t), L = num(r.L);
+  const P = posiciones(L);
+  const COL = ["#d1342f","#e08a00","#1f5fbf"];
+  const X0 = 110, X1 = 860, W = X1 - X0;
+  const sc = L>0 ? W/L : 1;
+  const yT = 110, yB = 200;               // vigueta
+  const X = m => X0 + m*sc;
+  let g = "";
+
+  // apoyos
+  g += `<defs><pattern id="hat" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" stroke="#8a93a6" stroke-width="1.5"/></pattern></defs>`;
+  g += `<rect x="${X0-60}" y="${yT-30}" width="60" height="${yB-yT+90}" fill="url(#hat)" stroke="#3a4255" stroke-width="1.5"/>`;
+  g += `<rect x="${X1}" y="${yT-30}" width="60" height="${yB-yT+90}" fill="url(#hat)" stroke="#3a4255" stroke-width="1.5"/>`;
+  g += `<text x="${X0-30}" y="${yB+78}" text-anchor="middle" font-size="12" fill="#3a4255">APOYO</text>`;
+  g += `<text x="${X1+30}" y="${yB+78}" text-anchor="middle" font-size="12" fill="#3a4255">APOYO</text>`;
+  // vigueta
+  g += `<rect x="${X0}" y="${yT}" width="${W}" height="${yB-yT}" fill="#eef1f6" stroke="#1d2330" stroke-width="2"/>`;
+  // acero long.
+  g += `<line x1="${X0-45}" y1="${yT+12}" x2="${X1+45}" y2="${yT+12}" stroke="#555" stroke-width="2"/>`;
+  g += `<line x1="${X0-45}" y1="${yB-12}" x2="${X1+45}" y2="${yB-12}" stroke="#555" stroke-width="2"/>`;
+  // estribos
+  P.out.forEach(q=>{
+    g += `<line x1="${X(q.x)}" y1="${yT+5}" x2="${X(q.x)}" y2="${yB-5}" stroke="${COL[q.z]}" stroke-width="2.2"/>`;
+  });
+
+  // cotas
+  const dim = (a,b,y,txt,col="#1d2330")=>{
+    const xa=X(a), xb=X(b), xm=(xa+xb)/2;
+    return `<line x1="${xa}" y1="${y}" x2="${xb}" y2="${y}" stroke="${col}" stroke-width="1"/>
+      <line x1="${xa}" y1="${y-6}" x2="${xa}" y2="${y+6}" stroke="${col}"/><line x1="${xb}" y1="${y-6}" x2="${xb}" y2="${y+6}" stroke="${col}"/>
+      <line x1="${xa-4}" y1="${y+4}" x2="${xa+4}" y2="${y-4}" stroke="${col}" stroke-width="1.5"/><line x1="${xb-4}" y1="${y+4}" x2="${xb+4}" y2="${y-4}" stroke="${col}" stroke-width="1.5"/>
+      <text x="${xm}" y="${y-6}" text-anchor="middle" font-size="12" fill="${col}">${txt}</text>`;
+  };
+  const z1 = P.zonas[0], z2 = P.zonas[1];
+  const l1 = z1.n*z1.s, l2 = l1 + z2.n*z2.s;
+  if(!P.corto && L>0){
+    // arriba: zonas
+    g += dim(0, l1, 70, `${z1.n}@${f2(z1.s)}`, COL[0]);
+    g += dim(l1, l2, 50, `${z2.n}@${f2(z2.s)}`, COL[1]);
+    g += dim(L-l1, L, 70, `${z1.n}@${f2(z1.s)}`, COL[0]);
+    g += dim(L-l2, L-l1, 50, `${z2.n}@${f2(z2.s)}`, COL[1]);
+    g += dim(l2, L-l2, 70, `Rsto. ${P.nr} @ ${(P.Lc/(P.nr+1)).toFixed(3)} (${critSym()} ${f2(P.sr)})  ·  Lc = ${f2(P.Lc)} m`, COL[2]);
+    // abajo: longitudes
+    g += dim(0, l2, 255, `${f2(l2)}`);
+    g += dim(L-l2, L, 255, `${f2(l2)}`);
+    g += dim(l2, L-l2, 255, `${f2(P.Lc)}`);
+  } else if(L>0){
+    g += `<text x="${(X0+X1)/2}" y="65" text-anchor="middle" font-size="13" fill="#b25e00">Luz corta: las zonas confinadas se cruzan al centro</text>`;
+  }
+  g += dim(0, L, 290, `LUZ LIBRE = ${f2(L)} m`);
+  g += `<text x="${(X0+X1)/2}" y="325" text-anchor="middle" font-size="15" font-weight="700" fill="#1d2330">${esc(r.t)} — ${P.out.length} estribos Ø3/8" por tramo${num(r.n)>1?` × ${Math.round(num(r.n))} = ${P.out.length*Math.round(num(r.n))}`:""}</text>`;
+
+  // leyenda
+  const ley = [[COL[0],`Zona 1: ${z1.n}@${f2(z1.s)}`],[COL[1],`Zona 2: ${z2.n}@${f2(z2.s)}`],[COL[2],`Resto @${f2(P.sr)}`]];
+  ley.forEach((l,i)=>{ g += `<line x1="${X0+i*190}" y1="355" x2="${X0+i*190+22}" y2="355" stroke="${l[0]}" stroke-width="3"/><text x="${X0+i*190+30}" y="359" font-size="12" fill="#3a4255">${l[1]}</text>`; });
+
+  // sección (mismo dibujo del corte A-A)
+  g += `<text x="1040" y="40" text-anchor="middle" font-size="13" font-weight="700">CORTE A-A</text>`;
+  g += `<g transform="translate(905,55)">${corteSVG(tp,300,230,false)}</g>`;
+  g += `<text x="1040" y="300" text-anchor="middle" font-size="11.5" fill="#6b7385">${FORMAS[tp.f]} Ø3/8" · L = ${f2(longTipo(tp))} m c/u</text>`;
+
+  // marca de corte A-A
+  if(L>0){
+    const xc = X(L/2) + (P.out.length%2 ? Math.min(18, sc*0.08) : 0) + 40;
+    g += `<line x1="${xc}" y1="${yT-22}" x2="${xc}" y2="${yB+22}" stroke="#1d2330" stroke-width="1.2" stroke-dasharray="8 4 2 4"/>
+      <circle cx="${xc}" cy="${yT-32}" r="11" fill="#fff" stroke="#1d2330"/><text x="${xc}" y="${yT-28}" text-anchor="middle" font-size="12" font-weight="700">A</text>
+      <circle cx="${xc}" cy="${yB+32}" r="11" fill="#fff" stroke="#1d2330"/><text x="${xc}" y="${yB+36}" text-anchor="middle" font-size="12" font-weight="700">A</text>`;
+  }
+
+  svg.innerHTML = g;
+  drawCortes(tp.t);
+  document.getElementById("esqNota").textContent = P.corto
+    ? "Nota: en luces cortas se colocan los estribos de cada extremo hasta encontrarse al centro, sin duplicar."
+    : `Criterio: separación ${critSym()} ${f2(P.sr)} m. Estribos del resto repartidos uniformemente en la zona central → separación real = ${(P.Lc/(P.nr+1)).toFixed(3)} m ${critSym()} ${f2(P.sr)} m. Esquema no a escala vertical.`;
+}
+
+// ---------- cortes ----------
+let corteSel = null;
+function corteSVG(tp, W, H, big){
+  const p = getParams(), rec = num(p.rec), b = num(tp.b), h = num(tp.h);
+  const k = Math.min((W*0.42)/Math.max(b,1), (H*0.55)/Math.max(h,1));
+  const bw=b*k, bh=h*k, rr=Math.max(rec*k, 8), cx=W*0.40, cy=H*0.50;
+  const sx=cx-bw/2, sy=cy-bh/2, fs = big?15:11, sw = big?3:2, br = big?7:4.5;
+  const C="#1f5fbf"; let g="";
+  g += `<rect x="${sx}" y="${sy}" width="${bw}" height="${bh}" fill="#e9edf3" stroke="#1d2330" stroke-width="${big?2.5:1.8}"/>`;
+  let bars, label;
+  if(tp.f==="estribo"){
+    bars=[[sx+rr,sy+rr],[sx+bw-rr,sy+rr],[sx+rr,sy+bh-rr],[sx+bw-rr,sy+bh-rr]];
+    const o = br+1.5;
+    g += `<rect x="${sx+rr-o}" y="${sy+rr-o}" width="${bw-2*rr+2*o}" height="${bh-2*rr+2*o}" rx="${o}" fill="none" stroke="${C}" stroke-width="${sw}"/>`;
+    const hk = big?28:16;
+    g += `<line x1="${sx+rr-o*0.3}" y1="${sy+rr-o*0.3}" x2="${sx+rr+hk}" y2="${sy+rr+hk}" stroke="${C}" stroke-width="${sw}"/>`;
+    g += `<line x1="${sx+rr+o*0.3}" y1="${sy+rr-o}" x2="${sx+rr+hk+4}" y2="${sy+rr+hk-6}" stroke="${C}" stroke-width="${sw}"/>`;
+    label = [["2 Ø 3/8\"", sy+rr],["2 Ø 3/8\"", sy+bh-rr]];
+  } else {
+    const v = tp.f==="grapa_v";
+    bars = v ? [[cx,sy+rr],[cx,sy+bh-rr]] : [[sx+rr,cy],[sx+bw-rr,cy]];
+    const [a,c] = bars, R = br+2, e = big?22:12;
+    if(v){
+      g += `<path d="M${a[0]-R} ${a[1]+e} L${a[0]-R} ${a[1]} A${R} ${R} 0 0 1 ${a[0]+R} ${a[1]} L${c[0]-R} ${c[1]} A${R} ${R} 0 0 0 ${c[0]+R} ${c[1]} L${c[0]+R} ${c[1]-e}" fill="none" stroke="${C}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    } else {
+      g += `<path d="M${a[0]+e} ${a[1]+R} L${a[0]} ${a[1]+R} A${R} ${R} 0 0 1 ${a[0]} ${a[1]-R} L${c[0]} ${c[1]+R} A${R} ${R} 0 0 0 ${c[0]} ${c[1]-R} L${c[0]-e} ${c[1]-R}" fill="none" stroke="${C}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    }
+    label = [["2 Ø 3/8\"", cy]];
+  }
+  bars.forEach(q=> g += `<circle cx="${q[0]}" cy="${q[1]}" r="${br}" fill="#1d2330"/>`);
+  // etiquetas acero
+  const xl = sx+bw+(big?22:12);
+  label.forEach(([t,y])=>{
+    g += `<line x1="${tp.f==='grapa_v' ? cx+br+4 : sx+bw-rr+br}" y1="${y}" x2="${xl+(big?40:22)}" y2="${y}" stroke="#1d2330" stroke-width="1"/>
+          <text x="${xl+(big?46:26)}" y="${y+fs*0.35}" font-size="${fs}">${t}</text>`;
+  });
+  // cotas
+  const yd = sy+bh+(big?30:18), xd = sx-(big?30:16), t=big?7:5;
+  g += `<line x1="${sx}" y1="${yd}" x2="${sx+bw}" y2="${yd}" stroke="#1d2330"/>
+    <line x1="${sx}" y1="${yd-t}" x2="${sx}" y2="${yd+t}" stroke="#1d2330"/><line x1="${sx+bw}" y1="${yd-t}" x2="${sx+bw}" y2="${yd+t}" stroke="#1d2330"/>
+    <text x="${cx}" y="${yd+fs+3}" text-anchor="middle" font-size="${fs}">${Math.round(b*10)}</text>
+    <line x1="${xd}" y1="${sy}" x2="${xd}" y2="${sy+bh}" stroke="#1d2330"/>
+    <line x1="${xd-t}" y1="${sy}" x2="${xd+t}" y2="${sy}" stroke="#1d2330"/><line x1="${xd-t}" y1="${sy+bh}" x2="${xd+t}" y2="${sy+bh}" stroke="#1d2330"/>
+    <text x="${xd-6}" y="${cy}" text-anchor="middle" font-size="${fs}" transform="rotate(-90 ${xd-6} ${cy})">${Math.round(h*10)}</text>`;
+  return g;
+}
+
+function drawCortes(tSel){
+  if(corteSel===null || !tipos.some(x=>x.t===corteSel)) corteSel = tSel;
+  const box = document.getElementById("cortes");
+  box.innerHTML = tipos.map(tp=>{
+    const on = tp.t===tSel, act = tp.t===corteSel;
+    return `<div onclick="corteSel='${esc(tp.t)}';drawCortes('${esc(tSel)}')" style="cursor:pointer;border:2px solid ${on?"#1f5fbf":act?"#9db8e3":"#d9dde5"};border-radius:6px;background:${on?"#e8f0fc":"#fff"};padding:4px">
+      <div style="text-align:center;font-weight:700;font-size:13px">${esc(tp.t)}</div>
+      <svg viewBox="0 0 260 170" width="100%">${corteSVG(tp,260,170,false)}</svg>
+      <div style="text-align:center;font-size:11.5px;color:#6b7385">${FORMAS[tp.f]} Ø3/8" · 1@0.05, 5@0.10, Rsto @0.25 A/E</div>
+    </div>`;
+  }).join("");
+  const tp = getTipo(corteSel);
+  document.getElementById("svgCorte").innerHTML =
+    `<text x="450" y="30" text-anchor="middle" font-size="18" font-weight="700">CORTE A-A — ${esc(tp.t)}</text>` +
+    `<g transform="translate(60,10)">${corteSVG(tp,640,400,true)}</g>` +
+    `<g font-size="13" fill="#3a4255">
+      <text x="640" y="330">Sección: ${tp.b} × ${tp.h} cm</text>
+      <text x="640" y="350">Estribo: ${FORMAS[tp.f]} Ø3/8"</text>
+      <text x="640" y="370">Long. c/u: ${f2(longTipo(tp))} m (rec. ${num(getParams().rec)} cm)</text>
+      <text x="640" y="390">Dist.: 1@0.05, 5@0.10, Rsto @0.25 A/E</text>
+    </g>`;
+}
+
+function addRow(){
+  const last = rows[rows.length-1];
+  rows.push({ub:"", t: last? last.t : tipos[0].t, L: last? last.L : 3.00, n:1});
+  renderRows(); update();
+}
+function confirmClear(){ return rows.length===0 || confirm("¿Borrar todos los tramos?"); }
+function clearRows(){ rows=[]; renderRows(); update(); }
+
+function exportCSV(){
+  const kg = num(getParams().pkg);
+  const out = [["#","Ubicacion","Tipo","Luz libre (m)","Cant","Estr/tramo","Total estr","Long (m)","Peso (kg)"]];
+  rows.forEach((r,i)=>{
+    const tp=getTipo(r.t), c=contar(num(r.L)), n=Math.max(0,Math.round(num(r.n)));
+    const tot=c.tot*n, lt=tot*longTipo(tp);
+    out.push([i+1,r.ub,r.t,num(r.L),n,c.tot,tot,lt.toFixed(2),(lt*kg).toFixed(2)]);
+  });
+  const csv = "﻿" + out.map(a=>a.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(";")).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+  a.download = "conteo_estribos_viguetas.csv"; a.click();
+}
+
+document.querySelectorAll("#z1n,#z1s,#z2n,#z2s,#rs,#crit,#rec,#gan,#pkg").forEach(el=>{el.addEventListener("input",update);el.addEventListener("change",update);});
+load(); renderTipos(); renderRows(); update();
+</script>
+</body>
+</html>
